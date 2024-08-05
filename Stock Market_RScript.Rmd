@@ -1,0 +1,252 @@
+---
+title: "Stock Market_RScript_Answers"
+author: "Keyur Patel"
+date: "ADD THE DATE"
+output:
+  html_document: default
+editor_options:
+  chunk_output_type: console
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+```
+
+## R Markdown
+
+This is an R Markdown document. Markdown is a simple formatting syntax for authoring HTML, PDF, and MS Word documents. For more details on using R Markdown see <http://rmarkdown.rstudio.com>.
+
+When you click the **Knit** button a document will be generated that includes both content as well as the output of any embedded R code chunks within the document. You can embed an R code chunk like this:
+
+Use control+Enter to run the code chunks on PC.
+Use  command+Enter to run the code chunks on MAC.
+
+## Load Packages
+
+In this section, we install and load the necessary packages. 
+
+```{r libraries, message=FALSE, include = FALSE}
+### Install packages. If you haven't install the following package, please uncomment the line below to install it. Then, comment it back before knitting the document.
+#install.packages("ggplot2")
+
+### load libraries for use in current working session
+library('ggplot2')
+library('class') # to run KNN
+library('ROSE') # to generate ROC
+
+```
+
+## Import Data
+
+In this section, we import the necessary data for this lab.
+
+```{r import, include=FALSE}
+### set your working directory
+# use setwd to set your working directory
+
+# you can also go to session-> set working directory -> choose directory
+# working directory is the path to the folder and not file
+
+# make sure the path of the directory is correct, i.e., where you have stored your data
+
+setwd("/Users/keyurpatel/Desktop/MGT 585")
+
+### import data file
+# read the files using read.csv
+Weekly <- read.csv(file = "weekly.csv")
+
+```
+
+# Stock Market Case
+We use the *Weekly.csv* data set, which is similar in nature to the Smarket data from the R lab.
+
+This data set consists of percentage returns for the S&P 500 stock index over 1,089 weekly returns for 21 years, from the beginning of 1990 until the end of 2010. For each week, we have recorded the percentage returns for each of the five previous trading weeks, Lag1 through Lag5. We have also recorded Volume (the number of shares traded on the previous week, in billions), Today (the percentage return for this week) and Direction (whether the market was Up or Down on this week).
+
+Do the following tasks and answer the questions below.
+
+## Task 1: Data exploration 
+Produce some numerical and graphical summaries of the Weekly data.
+
+```{r Weeklyexplore}
+
+# Explore the dataset using 5 functions: dim(), str(), colnames(), head() and tail
+dim(Weekly)
+str(Weekly)
+colnames(Weekly)
+head(Weekly)  
+tail(Weekly)
+
+
+# use summary() to print the descriptive statistics
+summary(Weekly)
+
+# Correct the type of 'Direction' which has to be factor
+Weekly$Direction <- as.factor(Weekly$Direction)
+
+# use pairs() to produce a matrix that contains all of the pairwise correlations among the predictors in a data set.
+pairs(Weekly, col=Weekly$Direction)
+
+# use cor to create the correlation matrix of all numerical variables.
+
+cor(Weekly[,-9])
+
+```
+
+**Question 1** : Does there appear to be any patterns?
+The pattern indicates that there is a clear upward trend in trading volume over time, but past returns do not appear to have a strong linear relationship with future returns or trading volume.
+
+## Task 2: Logistic Regression
+Use the full data set to perform a logistic regression with Direction as the response and the five lag variables plus Volume as predictors. Use the summary function to print the results.
+
+```{r WeeklyLogistic}
+
+# Use glm() to run a logistic analysis on Lag1 through Lag5 and Volume as predictors and Direction as the response
+glm.fits = glm(Direction ~ Lag1 + Lag2 + Lag3 + Lag4 + Lag5 + Volume, data=Weekly, family=binomial)
+summary(glm.fits)
+
+```
+
+**Question 2**: Do any of the predictors appear to be statistically significant? If so, which ones?
+Lag2 is the only predictors that appear to be statistically significant at the 0.05 level
+
+
+## Task 3: Confusion Matrix
+Compute the confusion matrix and overall fraction of correct predictions.
+```{r WeeklyConfusion}
+
+# predict the Direction probability of the whole dataset using the fitted logistic regression
+glm.probs = predict(glm.fits,type = "response")
+glm.probs[1:10]
+
+# create a vector of class predictions based on whether the predicted probability of a market increase is greater than or less than 0.5
+
+#glm.pred[glm.probs>.5] = "Up"
+
+glm.pred = ifelse(glm.probs>0.5,"Up","Down")
+
+# Use table() function to produce a confusion matrix
+confusionMatrixWeekly <- table(Weekly$Direction,glm.pred)
+confusionMatrixWeekly
+```
+
+Use the confusion matrix to compute Accuracy, Sensitivity and Specificity. 
+
+```{r}
+
+# Accuracy
+(54+557)/(54+430+48+557)
+
+# Sensitivity
+(557)/(557+48)
+
+# Specificity
+(54)/(54+430)
+
+```
+
+**Question 3**: Explain what the confusion matrix is telling you about the types of errors made by logistic regression. In other words, interpret the Accuracy, Sensitivity and Specificity.
+
+The logistic regression model in this case is highly sensitive but lacks specificity. It is good at detecting positive cases but struggles significantly with correctly identifying negative cases. This imbalance suggests that while the model can be trusted to catch most positive instances, it will also produce a high number of false alarms.
+
+
+## Task 4: Training and Testing Sets 
+
+Now fit the logistic regression model using a training data period from 1990 to 2008, with Lag2 as the only predictor. Compute the confusion matrix and the overall fraction of correct predictions (accuracy) for the held out data (that is, the data from 2009 and 2010).
+
+```{r traintestWeekly}
+
+# set seed to 1 
+set.seed(1)
+
+## split the data into training and testing sets based on the year. 
+# Use the data before 2009 as the training set and use the data of years 2009 and 2010 as the testing test
+trainIndex = Weekly$Year<2009
+
+trainWeekly <- Weekly[trainIndex, ]
+testWeekly  <- Weekly[!trainIndex, ]
+
+# Use glm() to run a logistic analysis on Lag2 as predictor and Direction as the response
+glm.fits1 = glm(Direction ~ Lag2, data=Weekly, family=binomial)
+summary(glm.fits1)
+
+# predict the Direction probability of the test dataset using the fitted logistic regression
+
+glm.probs2 = predict(glm.fits1,type = "response")
+glm.probs2[1:10]
+
+# create a vector of class predictions based on whether the predicted probability of a market increase is greater than or less than 0.5
+
+glm.pred2 = ifelse(glm.probs2>0.5,"Up","Down")
+
+# Use table() function to produce a confusion matrix
+
+confusionMatrixWeekly2 <- table(Weekly$Direction,glm.pred2)
+confusionMatrixWeekly2
+
+# Calculate accuracy
+(579+33)/(33+451+26+579)
+
+```
+
+**Question 4**: Is this classifier better than the logistic model fitted in Task 2? Explain.
+The current model has a slightly higher accuracy and better performance in identifying positive cases (higher sensitivity) compared to the model in Task 2. However, it performs worse in identifying negative cases (lower specificity).
+
+
+
+## Task 5
+Repeat Task 4 using KNN with K = 1 and K = 10. Note that you should only use Lag2 as the predictor and use the training and testing sets you developed in Task 4.
+
+```{r Weeklyk1}
+
+### KNN for k=1
+## IMPORTANT: you must use as.matrix() function to covert to matrix
+# This is a requirement imposed by knn() function
+# So, you should write knn(as.matrix(trainWeekly[,'Lag2']), as.matrix(testWeekly[,'Lag2']), trainWeekly$Direction, k = 1)
+trainLag2 <- as.matrix(trainWeekly[, 'Lag2'])
+testLag2 <- as.matrix(testWeekly[, 'Lag2'])
+
+knn_1 <- knn(trainLag2, testLag2, trainWeekly$Direction, k = 1)
+summary(knn_1)
+
+# Use table() function to produce a confusion matrix
+confusionMatrixKNN1 <- table(testWeekly$Direction, knn_1)
+confusionMatrixKNN1
+
+# Calculate accuracy
+(21+31)/(21+31+22+30)
+
+### KNN k = 10
+
+knn_10 <- knn(trainLag2, testLag2, trainWeekly$Direction, k = 10)
+summary(knn_10)
+
+# Use table() function to produce a confusion matrix
+confusionMatrixKNN10 <- table(testWeekly$Direction, knn_10)
+confusionMatrixKNN10
+
+# Calculate accuracy
+(17+43)/(17+43+26+18)
+```
+
+
+## Task 6
+
+Plot ROC curve and compute AUC for the latest logistic regression, KNN (k = 1) and KNN (k = 10).
+
+```{r roc}
+
+# ROC curve for logistic regression
+roc.curve(Weekly$Direction,glm.pred2)
+
+
+# ROC curve for KNN k = 1
+roc.curve(testWeekly$Direction, knn_1)
+
+# ROC curve for KNN k = 10
+roc.curve(testWeekly$Direction, knn_10)
+
+```
+
+**Question 5 **: Which of these methods appears to provide the best results on this data? Use accuracy, AUC and ROC Curve results.
+
+The KNN model with k=10 appears to provide the best results on this data, with the highest AUC of 0.550 and potentially more reliable performance. Despite the logistic regression model having an AUC of 0.513 and KNN with  k=1 having an AUC of 0.502, both show lower accuracy and less effective classification performance compared to KNN with k=10.
